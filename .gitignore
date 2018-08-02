@@ -1,0 +1,12 @@
+auto-save-list
+history
+projectile.cache
+recentf
+session.*
+company-statistics-cache.el
+elpa
+*~
+.places
+network-security.data
+emacs-custom.el
+projectile-bookmarks.eld
