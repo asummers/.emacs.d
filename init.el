@@ -4,21 +4,21 @@
 
 (setq gc-cons-threshold 100000000)
 
-(setq backup-directory-alist
-      `((".*" . ,temporary-file-directory)))
-(setq auto-save-file-name-transforms
-      `((".*" ,temporary-file-directory t)))
-
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 (set-frame-parameter (selected-frame) 'alpha '(93 93))
 (add-to-list 'default-frame-alist '(alpha 93 93))
 
-(setq custom-file "~/.emacs.d/emacs-custom.el")
-; (load custom-file)
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
 
-(require 'bind-key)
-(require 'diminish)
-(require 'use-package)
+(unless (package-installed-p 'bind-key)
+  (package-refresh-contents)
+  (package-install 'bind-key))
+
+(unless (package-installed-p 'diminish)
+  (package-refresh-contents)
+  (package-install 'diminish))
 
 (use-package base16-theme
   :ensure t
@@ -27,9 +27,6 @@
 
 (use-package sane-defaults
   :load-path "~/.emacs.d/plugins/")
-
-(use-package alchemist
-  :load-path "~/.emacs.d/plugins/alchemist.el")
 
 (use-package avy
   :ensure t
@@ -53,8 +50,7 @@
 (use-package company-lsp
   :ensure t
   :after company
-  :config
-  (push 'company-lsp company-backends))
+  :commands company-lsp)
 
 (use-package crux
   :ensure t
@@ -79,7 +75,7 @@
     (message "Marked")))
 
 (use-package dumb-jump
-  ;; :disabled
+  :disabled
   :ensure t
   :diminish dumb-jump
   :bind
@@ -87,13 +83,6 @@
    ("M-," . dumb-jump-back))
   :init
   (dumb-jump-mode))
-
-(use-package guru-mode
-  :ensure t
-  :defer t
-  :diminish guru-mode
-  :init
-  (guru-global-mode))
 
 (use-package dockerfile-mode
   :ensure t
@@ -104,6 +93,7 @@
 
 (use-package elixir-mode
   :ensure t
+  :bind (("<f7>" . elixir-format))
   :mode
   (("\\.exs$" . elixir-mode)
    ("\\.ex$" . elixir-mode)))
@@ -144,6 +134,14 @@
   :mode
   (("/\\.gitignore_global\\'" . gitignore-mode)
    ("/\\.gitignore\\'" . gitignore-mode)))
+
+(use-package go-mode
+  :ensure t
+  :mode
+  ("/\\.go\\'" . go-mode)
+  :config
+  (add-hook 'go-mode-hook (lambda ()
+                            (add-hook 'before-save-hook #'gofmt-before-save))))
 
 (use-package helm
   :ensure t
@@ -203,7 +201,6 @@
 
 (use-package helm-flx
   :ensure t
-  :defer t
   :after helm
   :init
   (helm-flx-mode t)
@@ -215,16 +212,17 @@
   :ensure t
   :after company
   :bind
-  ("M-?" . complete-symbol))
-  ;; (:map company-active-map
-
-  ;;  :map company-mode-map
-  ;;  ;; ("M-?" . helm-company)))
+  (:map company-active-map
+   :map company-mode-map
+   ("M-?" . helm-company)))
 
 (use-package helm-projectile
   :ensure t
   :bind
   (("C-c f" . helm-projectile-find-file)
+   ("C-c p r" . projectile-replace)
+   ("C-c p i" . projectile-invalidate-cache)
+   ("C-c p p" . helm-projectile-switch-project)
    ("C-c s" . helm-projectile-ag))
   :after helm
   :init
@@ -277,7 +275,6 @@
 
 (use-package hl-line
   :commands hl-line-mode
-  :ensure t
   :init
   (global-hl-line-mode 1)
   :config
@@ -285,46 +282,50 @@
 
 (use-package hl-todo
   :ensure t
-  :defer t
   :init
   (global-hl-todo-mode)
   :config
   (setq hl-todo-activate-in-modes '(prog-mode)))
 
+(use-package dap-mode
+  :disabled t
+  :ensure t
+  :hook
+  (elixir-mode . dap-mode)
+  :config
+  (defcustom dap-elixir-debug-program `("sh" ,(expand-file-name "~/Code/elixir-ls/debugger.sh"))
+    "The path to the elixir debugger."
+    :group 'dap-elixir
+    :type '(repeat string))
+
+  (defun dap-elixir--populate-start-file-args (conf)
+    "Populate CONF with the required arguments."
+    (-> conf
+        (dap--put-if-absent :dap-server-path dap-elixir-debug-program)
+        (dap--put-if-absent :type "Elixir")
+        (dap--put-if-absent :cwd default-directory)
+        (dap--put-if-absent :program (buffer-file-name))
+        (dap--put-if-absent :name "Elixir Debug")))
+
+  (dap-register-debug-provider "Elixir" 'dap-elixir--populate-start-file-args)
+  (dap-register-debug-template "Elixir Run Configuration"
+                               (list :type "Elixir"
+                                     :cwd nil
+                                     :request "projectDir"
+                                     :program nil
+                                     :name "Elixir::Run")))
+
 (use-package lsp-mode
-  :disabled
+  :disabled t
   :ensure t
   :diminish lsp-mode
   :bind
-  ("<f7>" . lsp-format-buffer)
-  :init (lsp-mode))
-
-(use-package lsp-imenu
-  :after lsp-mode
+  (("M-." . lsp-find-definition)
+   ("M-," . lsp-find-references))
   :hook
-  (lsp-after-open . lsp-enable-imenu))
-
-(use-package lsp-ui
-  :ensure t
-  :after lsp-mode
-  :diminish lsp-ui
-  :init (lsp-ui-mode)
-  :config
-  (setq lsp-ui-peek-enable nil)
-  (setq lsp-ui-sideline-enable nil)
-  (setq lsp-ui-doc-enable nil)
-  (setq lsp-enable-eldoc nil)
-  (setq lsp-ui-flycheck-enable t))
-
-(use-package lsp-elixir
-  :disabled
-  :load-path "~/.emacs.d/plugins/"
-  :after lsp-mode
-  :hook
-  (elixir-mode . lsp-elixir-enable)
-  :config
-  (setq lsp-elixir-ls-command "sh")
-  (setq lsp-elixir-ls-args '("/Users/asummers/Code/elixir-ls/language_server.sh")))
+  (elixir-mode . lsp)
+  :init
+  (add-to-list 'exec-path "~/Code/elixir-ls"))
 
 (use-package magit
   :ensure t
@@ -367,27 +368,12 @@
   (("M-<up>" . move-text-up)
    ("M-<down>" . move-text-down)))
 
-(use-package org-mode
-  :bind
-  (("C-c l" . org-store-link)
-   ("C-c C-a" . org-agenda))
-  :mode
-  ("\\.org$" . org-mode)
-  :init
-  (setq org-src-fontify-natively t)
-  (setq org-return-follows-link t)
-  (setq org-log-done 'time)
-  (setq org-use-fast-todo-selection t)
-  (setq org-todo-keywords
-        '((sequence "TODO(t)" "STARTED(s)" "WANT(w)" "|" "DONE(d)" "CANCELLED(c)"))))
-
 (use-package pair-mode
   :diminish pair-mode
   :load-path "~/.emacs.d/plugins/")
 
 (use-package projectile
   :ensure t
-  :defer t
   :diminish projectile-mode
   :init
   (projectile-mode)
@@ -425,24 +411,19 @@
 
 (use-package rainbow-mode
   :ensure t
-  :defer t
   :init
   (rainbow-mode t))
 
 (use-package restclient
-  :ensure t
-  :defer t)
+  :ensure t)
 
 (use-package savehist
-  :ensure t
-  :defer t
   :init
   (savehist-mode 1)
   :config
   (setq history-length 1000))
 
 (use-package saveplace
-  :ensure t
   :init
   (save-place-mode 1)
   :config
